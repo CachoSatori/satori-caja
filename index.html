@@ -487,6 +487,7 @@ let CF_SALDO_INICIAL       = parseFloat(localStorage.getItem('caja_cf_inicial') 
 let CF_SALDO_INICIAL_USD   = parseFloat(localStorage.getItem('caja_cf_inicial_usd')   || '0');
 let CF_SALDO_INICIAL_FECHA = localStorage.getItem('caja_cf_inicial_fecha') || '';
 let AJUSTES       = lsGet('caja_ajustes', []);
+let TAB_ACTUAL    = '';
 // Estado apertura del turno actual
 let APERTURA_CONFIRMADA = localStorage.getItem('caja_apertura_activa') === '1';
 let APERTURA_MONTO_CRC  = parseFloat(localStorage.getItem('caja_apertura_crc') || '0');
@@ -685,6 +686,7 @@ function renderView(id) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   const el = document.getElementById('view-'+id);
   if (!el) return;
+  TAB_ACTUAL = id;
   el.classList.add('active');
   if (id==='turno')       renderTurno(el);
   else if (id==='cierre')      renderCierreTurno(el);
@@ -1079,6 +1081,15 @@ function renderTurno(el) {
 .cd .fi input  { border:none; background:transparent; flex:1; font-size:14px; font-weight:700; outline:none; color:var(--ink); width:100%; min-width:0; font-family:'Syne',sans-serif; }
 .cd .mg-row    { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .cd .fl        { font-size:9px; letter-spacing:.15em; text-transform:uppercase; color:#888; margin-bottom:5px; }
+.metodo-tabs   { display:flex; gap:8px; margin-top:4px; }
+.metodo-tab    { flex:1; padding:9px 12px; border:1.5px solid var(--border); border-radius:2px; font-family:'DM Mono',monospace; font-size:10px; font-weight:700; letter-spacing:.08em; cursor:pointer; text-align:center; transition:all .15s; color:var(--muted); background:var(--paper); }
+.metodo-tab.active.efectivo     { border-color:var(--green); color:var(--green); background:#f0faf4; }
+.metodo-tab.active.transferencia { border-color:#4a7c9a; color:#4a7c9a; background:#f0f5fa; }
+.metodo-tab:not(.active):hover  { border-color:var(--ink); color:var(--ink); }
+.pago-card     { background:#fff; border:1px solid var(--border); border-radius:3px; margin-bottom:10px; padding:16px; }
+.pago-card-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.pago-num      { width:24px; height:24px; border-radius:50%; background:var(--ink); color:var(--gold); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.badge-pendiente { font-size:9px; letter-spacing:.08em; font-weight:700; color:#8a5210; background:#f5ede0; padding:3px 8px; border-radius:2px; }
 </style>
 <div class="cd" style="max-width:680px">
 
@@ -1255,7 +1266,7 @@ function renderTurno(el) {
   </div>`}
 </div>`;
 
-  addPago();
+  addPagoTurno();
   // Pre-llenar desde apertura confirmada
   const cajaCRCEl = document.getElementById('t-caja-crc');
   const cajaUSDEl = document.getElementById('t-caja-usd');
@@ -1512,7 +1523,7 @@ function addPagoTurno() {
     </div>
 
     <div class="form-group" style="margin-bottom:12px">
-      <label class="form-label">Método de pago</label>
+      <label class="form-label">Modo de pago / Tipo de operación</label>
       <div class="metodo-tabs" id="metodo-tabs-${idx}">
         <div class="metodo-tab efectivo active" onclick="setMetodo(${idx},'Efectivo')">💵 Efectivo</div>
         <div class="metodo-tab transferencia" onclick="setMetodo(${idx},'Transferencia')">🏦 Transferencia</div>
@@ -1526,6 +1537,11 @@ function addPagoTurno() {
       <label class="form-label">Nota / Nº Factura</label>
       <input class="form-input" placeholder="Nº factura, descripción del pago..." oninput="pagosActuales[${idx}].nota=this.value">
     </div>
+
+    <button onclick="confirmarPagoCard(${idx})" id="btn-confirm-pago-${idx}"
+      style="margin-top:10px;width:100%;padding:10px;font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;border-radius:2px;border:1.5px solid var(--green);background:transparent;color:var(--green);transition:all .15s">
+      ✓ Confirmar pago
+    </button>
   `;
 
   wrap.appendChild(div);
@@ -1572,6 +1588,31 @@ function removePago(idx) {
   pagosActuales[idx] = null;
   const el = document.getElementById('pago-' + idx);
   if (el) el.remove();
+  recalcTotales();
+}
+
+function confirmarPagoCard(idx) {
+  const p = pagosActuales[idx];
+  if (!p) return;
+  if (!p.proveedor_id) { showToast('Elegí un proveedor primero', 'error'); return; }
+  if (!p.monto_crc && !p.monto_usd) { showToast('Ingresá un monto', 'error'); return; }
+
+  // Colapsar el cuerpo del card, mostrar resumen
+  const card = document.getElementById('pago-' + idx);
+  if (!card) return;
+  const btn = document.getElementById('btn-confirm-pago-' + idx);
+
+  // Buscar y ocultar el cuerpo del form (todo menos el encabezado)
+  const head = card.querySelector('.pago-card-head');
+  Array.from(card.children).forEach(c => { if (c !== head) c.style.display = 'none'; });
+
+  // Mostrar badge de confirmado en el encabezado
+  const badgeZone = head?.querySelector('div:last-child');
+  const badgeConf = document.createElement('span');
+  badgeConf.textContent = '✓ Confirmado';
+  badgeConf.style.cssText = 'font-size:9px;letter-spacing:.1em;font-weight:700;color:var(--green);padding:3px 8px;border:1px solid var(--green);border-radius:2px';
+  if (badgeZone) badgeZone.prepend(badgeConf);
+
   recalcTotales();
 }
 
@@ -1781,7 +1822,7 @@ function renderMovimientos(el) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px">
       <div class="sl" style="margin:0;flex:1">Movimientos de Caja</div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="addMovInline()">+ Nuevo movimiento</button>
+        <button class="btn btn-primary btn-sm" onclick="openNuevoMovimiento()">+ Nuevo movimiento</button>
         <button class="btn btn-ghost btn-sm" onclick="exportMovCSV()">⬇ Exportar CSV</button>
       </div>
     </div>
@@ -1998,26 +2039,26 @@ function filterAndRenderMovs() {
   document.getElementById('movs-table')?.appendChild(tfoot);
 }
 
-// Agregar fila nueva inline
-function addMovInline() {
-  const newMov = {
-    id: 'm_' + Date.now().toString(),
-    fecha: today(), turno:'', tipo:'Egreso', categoria:'Egreso - Mercadería',
-    subcategoria:'', proveedor_id:'', proveedor_nombre:'', empleado_nombre:'',
-    monto_crc:0, monto_usd:0, metodo:'Efectivo', caja_origen:'Caja Proveedores',
-    estado:'Pagado', referencia:'', notas:'', timestamp: new Date().toISOString()
-  };
-  // Agregar a memoria y localStorage para edición inmediata en tabla
-  MOVIMIENTOS.unshift(newMov);
-  localStorage.setItem('caja_movimientos', JSON.stringify(MOVIMIENTOS));
-  filterAndRenderMovs();
-  setTimeout(() => {
-    const row = document.getElementById('mov-row-' + newMov.id);
-    if (row) {
-      row.style.background = '#fffdf0';
-      row.querySelector('input')?.focus();
-    }
-  }, 50);
+// Abrir modal para nuevo movimiento con campos reseteados
+function openNuevoMovimiento() {
+  const fechaEl = document.getElementById('mov-fecha');
+  if (fechaEl) fechaEl.value = today();
+  const crcEl = document.getElementById('mov-crc');
+  if (crcEl) crcEl.value = '';
+  const usdEl = document.getElementById('mov-usd');
+  if (usdEl) usdEl.value = '';
+  const refEl = document.getElementById('mov-ref');
+  if (refEl) refEl.value = '';
+  const notasEl = document.getElementById('mov-notas');
+  if (notasEl) notasEl.value = '';
+  const metodoEl = document.getElementById('mov-metodo');
+  if (metodoEl) metodoEl.value = 'Efectivo';
+  const cajaEl = document.getElementById('mov-caja');
+  if (cajaEl) cajaEl.value = 'Caja Fuerte';
+  const estadoEl = document.getElementById('mov-estado');
+  if (estadoEl) estadoEl.value = 'Pagado';
+  updateMovCategorias();
+  openModal('modal-mov');
 }
 
 async function updateMovField(id, field, value) {
