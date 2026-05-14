@@ -480,7 +480,8 @@ let MOVIMIENTOS   = (JSON.parse(localStorage.getItem('caja_movimientos') || '[]'
 let TURNOS        = JSON.parse(localStorage.getItem('caja_turnos')      || '[]');
 let CIERRES_TURNO = JSON.parse(localStorage.getItem('caja_cierres')     || '[]');
 let TIPO_CAMBIO   = parseFloat(localStorage.getItem('caja_tipo_cambio') || '530');
-let CF_SALDO_INICIAL = parseFloat(localStorage.getItem('caja_cf_inicial') || '0'); // ₡ por $1
+let CF_SALDO_INICIAL     = parseFloat(localStorage.getItem('caja_cf_inicial')     || '0');
+let CF_SALDO_INICIAL_USD = parseFloat(localStorage.getItem('caja_cf_inicial_usd') || '0');
 let AJUSTES       = JSON.parse(localStorage.getItem('caja_ajustes')     || '[]');
 // Estado apertura del turno actual
 let APERTURA_CONFIRMADA = localStorage.getItem('caja_apertura_activa') === '1';
