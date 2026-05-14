@@ -2742,21 +2742,23 @@ function buildResumenBody() {
   const cfColor = cfCRC < 0 ? 'var(--red)' : 'var(--gold)';
 
   let html = `
-    <div style="background:var(--ink);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:2px;padding:18px 24px;margin-bottom:20px">
-      <div style="font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:14px">Saldo Caja Fuerte · Lo que debería haber físicamente</div>
-      <div style="display:flex;gap:32px;flex-wrap:wrap;margin-bottom:14px">
-        <div>
-          <div style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:5px">Colones</div>
-          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${cfColor};line-height:1">${fi(cfCRC)}</div>
+    <div style="display:flex;justify-content:center;margin-bottom:20px">
+      <div style="background:var(--ink);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:2px;padding:16px 28px;width:fit-content;min-width:260px;text-align:center">
+        <div style="font-size:7px;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:12px">Saldo Caja Fuerte · Lo que debería haber físicamente</div>
+        <div style="display:flex;gap:28px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <div style="font-size:7px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:4px">Colones</div>
+            <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:${cfColor};line-height:1">${fi(cfCRC)}</div>
+          </div>
+          <div>
+            <div style="font-size:7px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:4px">Dólares</div>
+            <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#7ab4d4;line-height:1">${cfUSD ? fd(cfUSD) : fd(0)}</div>
+          </div>
         </div>
-        <div>
-          <div style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:5px">Dólares</div>
-          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#7ab4d4;line-height:1">${cfUSD ? fd(cfUSD) : fd(0)}</div>
+        <div style="font-size:8px;color:#555;border-top:1px solid #2a2a2a;padding-top:8px;line-height:1.8">
+          Saldo inicial: <span style="color:#888">${fi(CF_SALDO_INICIAL)}${CF_SALDO_INICIAL_USD ? ' / ' + fd(CF_SALDO_INICIAL_USD) : ''}</span>
+          ${CF_SALDO_INICIAL_FECHA ? ` · <span style="color:#666">desde el ${CF_SALDO_INICIAL_FECHA}</span>` : ''}
         </div>
-      </div>
-      <div style="font-size:9px;color:#555;border-top:1px solid #2a2a2a;padding-top:10px;line-height:1.8">
-        Saldo inicial registrado: <span style="color:#888">${fi(CF_SALDO_INICIAL)}${CF_SALDO_INICIAL_USD ? ' / ' + fd(CF_SALDO_INICIAL_USD) : ''}</span>
-        ${CF_SALDO_INICIAL_FECHA ? ` · <span style="color:#666">desde el ${CF_SALDO_INICIAL_FECHA}</span>` : ''}
       </div>
     </div>
 
