@@ -483,8 +483,9 @@ let MOVIMIENTOS   = lsGet('caja_movimientos', []).map(m => ({ ...m, fecha: m.fec
 let TURNOS        = lsGet('caja_turnos',   []);
 let CIERRES_TURNO = lsGet('caja_cierres',  []);
 let TIPO_CAMBIO   = parseFloat(localStorage.getItem('caja_tipo_cambio') || '530');
-let CF_SALDO_INICIAL     = parseFloat(localStorage.getItem('caja_cf_inicial')     || '0');
-let CF_SALDO_INICIAL_USD = parseFloat(localStorage.getItem('caja_cf_inicial_usd') || '0');
+let CF_SALDO_INICIAL       = parseFloat(localStorage.getItem('caja_cf_inicial')       || '0');
+let CF_SALDO_INICIAL_USD   = parseFloat(localStorage.getItem('caja_cf_inicial_usd')   || '0');
+let CF_SALDO_INICIAL_FECHA = localStorage.getItem('caja_cf_inicial_fecha') || '';
 let AJUSTES       = lsGet('caja_ajustes', []);
 // Estado apertura del turno actual
 let APERTURA_CONFIRMADA = localStorage.getItem('caja_apertura_activa') === '1';
@@ -2741,15 +2742,21 @@ function buildResumenBody() {
   const cfColor = cfCRC < 0 ? 'var(--red)' : 'var(--gold)';
 
   let html = `
-    <div style="background:var(--ink);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:2px;padding:16px 22px;display:flex;align-items:center;gap:32px;flex-wrap:wrap;margin-bottom:20px">
-      <div>
-        <div style="font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:6px">Saldo Caja Fuerte · Acumulado total</div>
-        <div style="font-family:'Syne',sans-serif;font-size:30px;font-weight:800;color:${cfColor};line-height:1">${fi(cfCRC)}</div>
-        ${cfUSD ? `<div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:#7ab4d4;margin-top:6px">${fd(cfUSD)}</div>` : ''}
+    <div style="background:var(--ink);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:2px;padding:18px 24px;margin-bottom:20px">
+      <div style="font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:14px">Saldo Caja Fuerte · Lo que debería haber físicamente</div>
+      <div style="display:flex;gap:32px;flex-wrap:wrap;margin-bottom:14px">
+        <div>
+          <div style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:5px">Colones</div>
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:${cfColor};line-height:1">${fi(cfCRC)}</div>
+        </div>
+        <div>
+          <div style="font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:5px">Dólares</div>
+          <div style="font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#7ab4d4;line-height:1">${cfUSD ? fd(cfUSD) : fd(0)}</div>
+        </div>
       </div>
-      <div style="font-size:9px;color:#555;line-height:1.9;border-left:1px solid #2a2a2a;padding-left:24px">
-        <div>Saldo inicial: <span style="color:#888">${fi(CF_SALDO_INICIAL)}${CF_SALDO_INICIAL_USD?' / '+fd(CF_SALDO_INICIAL_USD):''}</span></div>
-        <div>Esto es lo que debería haber físicamente en Caja Fuerte</div>
+      <div style="font-size:9px;color:#555;border-top:1px solid #2a2a2a;padding-top:10px;line-height:1.8">
+        Saldo inicial registrado: <span style="color:#888">${fi(CF_SALDO_INICIAL)}${CF_SALDO_INICIAL_USD ? ' / ' + fd(CF_SALDO_INICIAL_USD) : ''}</span>
+        ${CF_SALDO_INICIAL_FECHA ? ` · <span style="color:#666">desde el ${CF_SALDO_INICIAL_FECHA}</span>` : ''}
       </div>
     </div>
 
@@ -3065,12 +3072,15 @@ function saveTipoCambio() {
 function saveCFInicial() {
   const val    = parseFloat(document.getElementById('cfg-cf-inicial')?.value     || '0');
   const valUSD = parseFloat(document.getElementById('cfg-cf-inicial-usd')?.value || '0');
-  CF_SALDO_INICIAL     = val;
-  CF_SALDO_INICIAL_USD = valUSD;
-  localStorage.setItem('caja_cf_inicial',     String(val));
-  localStorage.setItem('caja_cf_inicial_usd', String(valUSD));
+  const fecha  = today();
+  CF_SALDO_INICIAL       = val;
+  CF_SALDO_INICIAL_USD   = valUSD;
+  CF_SALDO_INICIAL_FECHA = fecha;
+  localStorage.setItem('caja_cf_inicial',       String(val));
+  localStorage.setItem('caja_cf_inicial_usd',   String(valUSD));
+  localStorage.setItem('caja_cf_inicial_fecha',  fecha);
   const st = document.getElementById('cfg-cf-status');
-  if (st) st.innerHTML = '<span style="color:var(--green)">✓ Saldo inicial: '+fi(val)+(valUSD?' / '+fd(valUSD):'')+'</span>';
+  if (st) st.innerHTML = '<span style="color:var(--green)">✓ Saldo inicial: '+fi(val)+(valUSD?' / '+fd(valUSD):'')+' · '+fecha+'</span>';
   showToast('✓ Saldo inicial de CF registrado','success');
 }
 
