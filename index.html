@@ -557,12 +557,14 @@ async function syncData() {
   let rProv, rMovs, rTurnos, rCats, rCierres;
 
   try {
-    [rProv, rMovs, rTurnos, rCats, rCierres] = await Promise.all([
+    let rEmpleados;
+    [rProv, rMovs, rTurnos, rCats, rCierres, rEmpleados] = await Promise.all([
       apiGet({ action:'getProvCaja' }),
       apiGet({ action:'getMovimientos' }),
       apiGet({ action:'getTurnos' }),
       apiGet({ action:'getCatsCaja' }),
       apiGet({ action:'getCierresTurno' }),
+      apiGet({ action:'getEmpleados' }),
     ]);
 
     // PROVEEDORES — Sheets manda siempre
@@ -603,6 +605,12 @@ async function syncData() {
     if (rCierres?.ok) {
       CIERRES_TURNO = rCierres.cierres.map(ct => ({ ...ct, fecha: normalizarFecha(ct.fecha) }));
       localStorage.setItem('caja_cierres', JSON.stringify(CIERRES_TURNO));
+    }
+
+    // EMPLEADOS — Sheets manda siempre
+    if (rEmpleados?.ok) {
+      EMPLEADOS = rEmpleados.empleados.filter(e => e.activo !== false && e.activo !== 'false').map(e => e.nombre);
+      localStorage.setItem('caja_empleados', JSON.stringify(EMPLEADOS));
     }
 
   } catch(err) {

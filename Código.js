@@ -17,6 +17,7 @@ const SHEET_MOVS           = 'movimientos';
 const SHEET_PROV_CAJA      = 'proveedores_caja';
 const SHEET_CATS_CAJA      = 'categorias_caja';
 const SHEET_CIERRES        = 'cierres_turno';
+const SHEET_EMPLEADOS      = 'empleados';
 
 const SECRET_KEY = 'satori2026';
 
@@ -51,6 +52,7 @@ function doGet(e) {
     else if (action === 'getProvCaja')      result = getProvCaja();
     else if (action === 'getCatsCaja')      result = getCatsCaja();
     else if (action === 'getCierresTurno')  result = getCierresTurno(params);
+    else if (action === 'getEmpleados')     result = getEmpleados();
 
     output.setContent(JSON.stringify(result));
   } catch(err) {
@@ -93,6 +95,9 @@ function doPost(e) {
     else if (action === 'deleteProvCaja')  result = deleteProvCaja(params.id);
     else if (action === 'saveCatCaja')     result = saveCatCaja(params.data);
     else if (action === 'deleteCatCaja')   result = deleteCatCaja(params.id);
+    else if (action === 'getEmpleados')    result = getEmpleados();
+    else if (action === 'saveEmpleado')    result = saveEmpleado(params.data);
+    else if (action === 'deleteEmpleado')  result = deleteEmpleado(params.id);
 
     output.setContent(JSON.stringify(result));
   } catch(err) {
@@ -176,6 +181,12 @@ function initSheets() {
   if (!ss.getSheetByName(SHEET_CIERRES)) {
     const s = ss.insertSheet(SHEET_CIERRES);
     s.getRange(1,1,1,4).setValues([['id','fecha','tipo','data_json']]);
+    s.setFrozenRows(1);
+  }
+
+  if (!ss.getSheetByName(SHEET_EMPLEADOS)) {
+    const s = ss.insertSheet(SHEET_EMPLEADOS);
+    s.getRange(1,1,1,5).setValues([['id','nombre','rol','activo','timestamp']]);
     s.setFrozenRows(1);
   }
 
@@ -833,6 +844,53 @@ function saveCierreTurno(dataStr) {
   }
   sheet.appendRow([id, data.fecha, data.tipo, JSON.stringify(data)]);
   return { ok:true, action:'inserted', id };
+}
+
+// ══════════════════════════════════════════════════════════════
+// MÓDULO EMPLEADOS
+// ══════════════════════════════════════════════════════════════
+function getEmpleados() {
+  initSheets();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_EMPLEADOS);
+  const rows  = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return { ok:true, empleados:[] };
+  return {
+    ok: true,
+    empleados: rows.slice(1).map(r => ({
+      id:r[0], nombre:r[1], rol:r[2], activo:r[3], timestamp:r[4]
+    }))
+  };
+}
+
+function saveEmpleado(dataStr) {
+  initSheets();
+  const data  = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_EMPLEADOS);
+  const rows  = sheet.getDataRange().getValues();
+  const id    = data.id || 'emp_' + Date.now();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === id) {
+      sheet.getRange(i+1, 1, 1, 5).setValues([[
+        id, data.nombre, data.rol||'', data.activo!==false, data.timestamp||new Date().toISOString()
+      ]]);
+      return { ok:true, action:'updated', id };
+    }
+  }
+  sheet.appendRow([id, data.nombre, data.rol||'', data.activo!==false, data.timestamp||new Date().toISOString()]);
+  return { ok:true, action:'inserted', id };
+}
+
+function deleteEmpleado(id) {
+  initSheets();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_EMPLEADOS);
+  const rows  = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === id) {
+      sheet.getRange(i+1, 4).setValue(false);
+      return { ok:true };
+    }
+  }
+  return { ok:false, error:'Not found' };
 }
 
 // ══════════════════════════════════════════════════════════════
