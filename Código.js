@@ -16,6 +16,7 @@ const SHEET_TURNOS         = 'turnos';
 const SHEET_MOVS           = 'movimientos';
 const SHEET_PROV_CAJA      = 'proveedores_caja';
 const SHEET_CATS_CAJA      = 'categorias_caja';
+const SHEET_CIERRES        = 'cierres_turno';
 
 const SECRET_KEY = 'satori2026';
 
@@ -45,10 +46,11 @@ function doGet(e) {
       result = saveMetas_sheet(d);
     }
     // ── Módulo Caja ───────────────────────────────────────────
-    else if (action === 'getTurnos')       result = getTurnos(params);
-    else if (action === 'getMovimientos')  result = getMovimientos(params);
-    else if (action === 'getProvCaja')     result = getProvCaja();
-    else if (action === 'getCatsCaja')     result = getCatsCaja();
+    else if (action === 'getTurnos')        result = getTurnos(params);
+    else if (action === 'getMovimientos')   result = getMovimientos(params);
+    else if (action === 'getProvCaja')      result = getProvCaja();
+    else if (action === 'getCatsCaja')      result = getCatsCaja();
+    else if (action === 'getCierresTurno')  result = getCierresTurno(params);
 
     output.setContent(JSON.stringify(result));
   } catch(err) {
@@ -82,8 +84,9 @@ function doPost(e) {
     else if (action === 'saveProductos')  result = saveProductos(params.data);
     else if (action === 'parseProductos') result = parseProductos(params.filedata, params.filename);
     // ── Módulo Caja ───────────────────────────────────────────
-    else if (action === 'saveTurno')       result = saveTurno(params.data);
-    else if (action === 'saveMovimiento')  result = saveMovimiento(params.data);
+    else if (action === 'saveTurno')        result = saveTurno(params.data);
+    else if (action === 'saveCierreTurno')  result = saveCierreTurno(params.data);
+    else if (action === 'saveMovimiento')   result = saveMovimiento(params.data);
     else if (action === 'deleteMovimiento')result = deleteMovimiento(params.id);
     else if (action === 'updateMovEstado') result = updateMovEstado(params.id, params.estado);
     else if (action === 'saveProvCaja')    result = saveProvCaja(params.data);
@@ -167,6 +170,12 @@ function initSheets() {
       'id','nombre','categoria','moneda',
       'ciclo_pago','metodo_pago','cuenta_iban','notas','activo'
     ]]);
+    s.setFrozenRows(1);
+  }
+
+  if (!ss.getSheetByName(SHEET_CIERRES)) {
+    const s = ss.insertSheet(SHEET_CIERRES);
+    s.getRange(1,1,1,4).setValues([['id','fecha','tipo','data_json']]);
     s.setFrozenRows(1);
   }
 
@@ -787,6 +796,43 @@ function deleteCatCaja(id) {
     }
   }
   return { ok:false, error:'Not found' };
+}
+
+// ══════════════════════════════════════════════════════════════
+// MÓDULO CAJA: CIERRES DE TURNO
+// ══════════════════════════════════════════════════════════════
+function getCierresTurno(params) {
+  initSheets();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CIERRES);
+  const rows  = sheet.getDataRange().getValues();
+  if (rows.length <= 1) return { ok:true, cierres:[] };
+  const from = params?.from || '';
+  const to   = params?.to   || '';
+  const cierres = [];
+  for (let i = 1; i < rows.length; i++) {
+    const fecha = String(rows[i][1]);
+    if (from && fecha < from) continue;
+    if (to   && fecha > to)   continue;
+    const data = tryParse(rows[i][3], {});
+    cierres.push({ id: String(rows[i][0]), fecha, tipo: rows[i][2], ...data });
+  }
+  return { ok:true, cierres };
+}
+
+function saveCierreTurno(dataStr) {
+  initSheets();
+  const data  = JSON.parse(dataStr);
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_CIERRES);
+  const id    = data.id || ('ct_' + Date.now());
+  const rows  = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]) === String(id)) {
+      sheet.getRange(i+1, 1, 1, 4).setValues([[id, data.fecha, data.tipo, JSON.stringify(data)]]);
+      return { ok:true, action:'updated', id };
+    }
+  }
+  sheet.appendRow([id, data.fecha, data.tipo, JSON.stringify(data)]);
+  return { ok:true, action:'inserted', id };
 }
 
 // ══════════════════════════════════════════════════════════════

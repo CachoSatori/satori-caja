@@ -472,27 +472,30 @@ let MODO = localStorage.getItem('caja_modo') || 'owner'; // Default owner hasta 
 let EMPLEADO = localStorage.getItem('caja_empleado') || '';
 
 // ── Estado local ──────────────────────────────────────────────
-let PROVEEDORES   = JSON.parse(localStorage.getItem('caja_proveedores') || '[]');
-let MOVIMIENTOS   = (JSON.parse(localStorage.getItem('caja_movimientos') || '[]'))
-  .map(m => ({ ...m, fecha: m.fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(m.fecha)) ? m.fecha : (() => {
+function lsGet(key, def) {
+  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(def)); }
+  catch(e) { console.warn('localStorage corrupto en', key, '— reseteando'); localStorage.removeItem(key); return def; }
+}
+let PROVEEDORES   = lsGet('caja_proveedores', []);
+let MOVIMIENTOS   = lsGet('caja_movimientos', []).map(m => ({ ...m, fecha: m.fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(m.fecha)) ? m.fecha : (() => {
     try { const d = new Date(m.fecha); if (!isNaN(d.getTime())) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); } } catch(e) {} return String(m.fecha||'').slice(0,10);
   })() }));
-let TURNOS        = JSON.parse(localStorage.getItem('caja_turnos')      || '[]');
-let CIERRES_TURNO = JSON.parse(localStorage.getItem('caja_cierres')     || '[]');
+let TURNOS        = lsGet('caja_turnos',   []);
+let CIERRES_TURNO = lsGet('caja_cierres',  []);
 let TIPO_CAMBIO   = parseFloat(localStorage.getItem('caja_tipo_cambio') || '530');
 let CF_SALDO_INICIAL     = parseFloat(localStorage.getItem('caja_cf_inicial')     || '0');
 let CF_SALDO_INICIAL_USD = parseFloat(localStorage.getItem('caja_cf_inicial_usd') || '0');
-let AJUSTES       = JSON.parse(localStorage.getItem('caja_ajustes')     || '[]');
+let AJUSTES       = lsGet('caja_ajustes', []);
 // Estado apertura del turno actual
 let APERTURA_CONFIRMADA = localStorage.getItem('caja_apertura_activa') === '1';
 let APERTURA_MONTO_CRC  = parseFloat(localStorage.getItem('caja_apertura_crc') || '0');
 let APERTURA_MONTO_USD  = parseFloat(localStorage.getItem('caja_apertura_usd') || '0');
 
 // Empleados (se sincronizan desde el dashboard principal)
-let EMPLEADOS = JSON.parse(localStorage.getItem('caja_empleados') || '[]');
+let EMPLEADOS = lsGet('caja_empleados', []);
 
 // Categorías — se cargan desde backend (getCatsCaja) y se cachean localmente
-let CATS_DATA = JSON.parse(localStorage.getItem('caja_cats') || '[]');
+let CATS_DATA = lsGet('caja_cats', []);
 
 // Obtener lista de nombres de categoría por tipo
 function getCatsByTipo(tipo) {
@@ -730,6 +733,7 @@ function normalizarFecha(f) {
 }
 function fi(n) { return n!=null ? '₡'+Math.round(n||0).toLocaleString('es-CR') : '—'; }
 function fd(n) { return n!=null ? '$'+parseFloat(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—'; }
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 
@@ -766,23 +770,19 @@ async function saveMov() {
     timestamp:  new Date().toISOString()
   };
 
-  closeModal('modal-mov');
   showToast('Guardando en Sheets...', '');
 
   // Sheets primero — fuente de verdad
   const r = await apiPost({ action:'saveMovimiento', data: JSON.stringify(mov) });
   if (r?.ok) {
-    // Sheets confirmó → actualizar local
+    closeModal('modal-mov');
     MOVIMIENTOS.unshift(mov);
     localStorage.setItem('caja_movimientos', JSON.stringify(MOVIMIENTOS));
     showToast('✓ Guardado en Sheets', 'success');
     renderView(TAB_ACTUAL);
     buildSaldos();
   } else {
-    // Sheets falló → NO guardar local, mostrar error claro
-    showToast('✗ Error al guardar en Sheets. Reintentá el movimiento.','error');
-    // Reabrir el modal con los datos para que el usuario pueda reintentar
-    openModal('modal-mov');
+    showToast('✗ Error al guardar en Sheets. Reintentá.','error');
   }
 }
 
@@ -832,9 +832,9 @@ function renderAperturaTurno(el) {
     : ultTurno ? (ultTurno.efectivo_cierre_crc||0) : (CF_SALDO_INICIAL||0);
   const sugeridoUSD = ultCierreNoche ? (ultCierreNoche.sep_diaria_usd||0) : 0;
 
-  const empList = EMPLEADOS.length ? EMPLEADOS
-    : ['Alan','Dolores','GUIDO','GUILLE','Ignacio','Jaime','Joaquina','Jota','Maxi','Nacho','ROSAURA M','Rocio','Cajero Turno Mañana','cajero turno tarde'];
-  const empOpts = empList.map(e=>`<option value="${e}"${EMPLEADO===e?' selected':''}>${e}</option>`).join('');
+  const empOpts = EMPLEADOS.length
+    ? EMPLEADOS.map(e=>`<option value="${e}"${EMPLEADO===e?' selected':''}>${e}</option>`).join('')
+    : '<option value="" disabled>Sin empleados — sincronizá primero</option>';
 
   el.innerHTML = `
     <div style="max-width:560px;margin:0 auto">
@@ -1048,9 +1048,9 @@ function renderTurno(el) {
   pagosActuales = [];
   adicionalesActuales = [];
 
-  const empList = EMPLEADOS.length ? EMPLEADOS
-    : ['Alan','Dolores','GUIDO','GUILLE','Ignacio','Jaime','Joaquina','Jota','Maxi','Nacho','ROSAURA M','Rocio'];
-  const empOpts = empList.map(e => `<option value="${e}"${EMPLEADO===e?' selected':''}>${e}</option>`).join('');
+  const empOpts = EMPLEADOS.length
+    ? EMPLEADOS.map(e => `<option value="${e}"${EMPLEADO===e?' selected':''}>${e}</option>`).join('')
+    : '<option value="" disabled>Sin empleados — sincronizá primero</option>';
   const hoy = new Date().toISOString().slice(0,10);
 
   el.innerHTML = `
@@ -1268,41 +1268,6 @@ function renderTurno(el) {
 }
 
 function recalcCierre2() {
-  const cajaCRC = +document.getElementById('t-caja-crc')?.value || 0;
-  const adics   = adicionalesActuales.filter(a=>a).reduce((s,a)=>s+(a.crc||0),0);
-  const ingresos= (typeof ingresosActuales!=='undefined'?ingresosActuales:[]).filter(i=>i).reduce((s,i)=>s+(i.monto_crc||0),0);
-  const total   = cajaCRC + adics + ingresos;
-  const ef      = pagosActuales.filter(p=>p&&p.proveedor_id&&p.metodo==='Efectivo').reduce((s,p)=>s+(p.monto_crc||0),0);
-  const deberia = total - ef;
-  const cierre  = +document.getElementById('t-cierre-crc')?.value || 0;
-
-  const cvA = document.getElementById('cv-asignado');
-  const cvG = document.getElementById('cv-gastado');
-  const cvD = document.getElementById('cv-deberia');
-  if (cvA) cvA.textContent = fi(total);
-  if (cvG) cvG.textContent = '− ' + fi(ef);
-  if (cvD) cvD.textContent = fi(deberia);
-
-  const res = document.getElementById('cierre-resultado');
-  const ico = document.getElementById('cierre-icono');
-  const msg = document.getElementById('cierre-msg');
-  if (!res || !msg) return;
-  if (!cierre) {
-    res.style.cssText = 'border-radius:2px;padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;background:#e8f5ec;border:1px solid #b0d8b8';
-    if (ico) { ico.className='ti ti-circle-check'; ico.style.color='#2a7a4a'; }
-    if (msg) { msg.textContent='Ingresá el efectivo al cierre'; msg.style.color='#2a7a4a'; }
-    return;
-  }
-  const dif = cierre - deberia;
-  const ok  = Math.abs(dif) < 500;
-  res.style.cssText = `border-radius:2px;padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:8px;background:${ok?'#e8f5ec':'#fdf0ee'};border:1px solid ${ok?'#b0d8b8':'#f0b0b0'}`;
-  if (ico) { ico.className = ok?'ti ti-circle-check':'ti ti-alert-circle'; ico.style.color = ok?'#2a7a4a':'var(--red)'; }
-  if (msg) { msg.textContent = ok ? 'Cuadra correctamente' : 'Diferencia: ' + fi(Math.abs(dif)) + (dif>0?' de más':' faltante'); msg.style.color = ok?'#2a7a4a':'var(--red)'; }
-}
-
-
-
-function recalcCierre2() {
   // Función auxiliar para el bloque de cierre en Caja Diaria
   const cajaCRC  = +document.getElementById('t-caja-crc')?.value || 0;
   const adics    = adicionalesActuales.filter(a=>a).reduce((s,a)=>s+(a.crc||0), 0);
@@ -1433,8 +1398,8 @@ function recalcTotales() {
       const prov = PROVEEDORES.find(pv=>pv.id===p.proveedor_id);
       return `<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:10px;align-items:center;padding:9px 0;border-bottom:0.5px solid #f0f0f0">
         <div>
-          <div style="font-size:13px;font-weight:500">${p.proveedor_nombre||prov?.nombre||'—'}</div>
-          <div style="font-size:11px;color:#aaa;margin-top:2px">${prov?.categoria||'Proveedor'}${p.referencia?' · ref: '+p.referencia:''}</div>
+          <div style="font-size:13px;font-weight:500">${esc(p.proveedor_nombre||prov?.nombre||'—')}</div>
+          <div style="font-size:11px;color:#aaa;margin-top:2px">${esc(prov?.categoria||'Proveedor')}${p.referencia?' · ref: '+esc(p.referencia):''}</div>
         </div>
         <span style="background:${p.metodo==='Efectivo'?'#EAF3DE':'#FAEEDA'};color:${p.metodo==='Efectivo'?'#27500A':'#633806'};font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;white-space:nowrap">${p.metodo}</span>
         <div style="font-size:13px;font-weight:500;text-align:right;white-space:nowrap;color:${p.metodo==='Transferencia'?'#888':'inherit'}">${fi(p.monto_crc)}</div>
@@ -1669,7 +1634,7 @@ function mostrarResumenTurno() {
         ${pagosV.map(p=>`
           <div style="display:flex;justify-content:space-between;padding:5px 0 5px 12px;border-bottom:1px solid var(--border);font-size:10px">
             <div>
-              <span style="color:var(--ink);font-weight:600">${p.proveedor_nombre||'—'}</span>
+              <span style="color:var(--ink);font-weight:600">${esc(p.proveedor_nombre||'—')}</span>
               <span style="font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding:1px 6px;margin-left:6px;border-radius:1px;${p.metodo==='Efectivo'?'background:#e8f5ec;color:#2a7a4a':'background:#e8f0f8;color:#2a4a7a'}">${p.metodo}</span>
             </div>
             <div style="text-align:right">
@@ -1957,13 +1922,13 @@ function filterAndRenderMovs() {
         </select>
       </td>
       <td>
-        <input value="${m.subcategoria||m.notas||''}" placeholder="subcategoría..."
-          onchange="updateMovField('${m.id}','subcategoria',this.value)"
+        <input value="${esc(m.subcategoria||m.notas||'')}" placeholder="subcategoría..."
+          onchange="updateMovField('${esc(m.id)}','subcategoria',this.value)"
           style="font-size:10px">
       </td>
       <td>
-        <input value="${m.proveedor_nombre||m.empleado_nombre||''}" placeholder="proveedor / empleado"
-          onchange="updateMovPE('${m.id}',this.value)"
+        <input value="${esc(m.proveedor_nombre||m.empleado_nombre||'')}" placeholder="proveedor / empleado"
+          onchange="updateMovPE('${esc(m.id)}',this.value)"
           style="font-size:10px">
       </td>
       <td class="r">
@@ -1994,8 +1959,8 @@ function filterAndRenderMovs() {
         </select>
       </td>
       <td>
-        <input value="${m.notas||m.referencia||''}" placeholder="notas, factura..."
-          onchange="updateMovField('${m.id}','notas',this.value)"
+        <input value="${esc(m.notas||m.referencia||'')}" placeholder="notas, factura..."
+          onchange="updateMovField('${esc(m.id)}','notas',this.value)"
           style="font-size:10px">
       </td>
       <td style="text-align:center">
@@ -2266,18 +2231,18 @@ function renderProveedores(el) {
     card.className = 'prov-card';
     card.innerHTML = `
       <div class="prov-card-head">
-        <div class="prov-card-name">${p.nombre}</div>
+        <div class="prov-card-name">${esc(p.nombre)}</div>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-ghost btn-sm" onclick="openProvModal('${p.id}')">✏</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProv('${p.id}')">×</button>
+          <button class="btn btn-ghost btn-sm" onclick="openProvModal('${esc(p.id)}')">✏</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteProv('${esc(p.id)}')">×</button>
         </div>
       </div>
       <div class="prov-card-body">
-        <div class="prov-stat"><span style="color:#888">Categoría</span><span>${p.categoria}</span></div>
-        <div class="prov-stat"><span style="color:#888">Ciclo pago</span><span>${p.ciclo_pago}</span></div>
-        <div class="prov-stat"><span style="color:#888">Método</span><span>${p.metodo_pago}</span></div>
-        <div class="prov-stat"><span style="color:#888">Moneda</span><span>${p.moneda}</span></div>
-        ${p.cuenta_iban?`<div class="prov-stat"><span style="color:#888">IBAN</span><span style="font-size:9px">${p.cuenta_iban}</span></div>`:''}
+        <div class="prov-stat"><span style="color:#888">Categoría</span><span>${esc(p.categoria)}</span></div>
+        <div class="prov-stat"><span style="color:#888">Ciclo pago</span><span>${esc(p.ciclo_pago)}</span></div>
+        <div class="prov-stat"><span style="color:#888">Método</span><span>${esc(p.metodo_pago)}</span></div>
+        <div class="prov-stat"><span style="color:#888">Moneda</span><span>${esc(p.moneda)}</span></div>
+        ${p.cuenta_iban?`<div class="prov-stat"><span style="color:#888">IBAN</span><span style="font-size:9px">${esc(p.cuenta_iban)}</span></div>`:''}
         ${deudaCRC||deudaUSD?`
           <div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">
             <div style="font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--red);margin-bottom:4px">Pendiente</div>
@@ -2418,10 +2383,10 @@ function renderPendientes(el) {
           <div style="display:flex;align-items:center;gap:10px">
             <div style="width:8px;height:8px;border-radius:50%;background:#c8a030;flex-shrink:0"></div>
             <div>
-              <div style="font-family:'Shippori Mincho',serif;font-size:16px;font-weight:700">${nombre}</div>
+              <div style="font-family:'Shippori Mincho',serif;font-size:16px;font-weight:700">${esc(nombre)}</div>
               <div style="font-size:9px;color:#888;margin-top:2px">
-                ${prov?.categoria||'Proveedor'} · ${data.movs.length} pago${data.movs.length!==1?'s':''} pendiente${data.movs.length!==1?'s':''}
-                ${ciclo!=='—'?' · Ciclo: '+ciclo:''}
+                ${esc(prov?.categoria||'Proveedor')} · ${data.movs.length} pago${data.movs.length!==1?'s':''} pendiente${data.movs.length!==1?'s':''}
+                ${ciclo!=='—'?' · Ciclo: '+esc(ciclo):''}
               </div>
             </div>
           </div>
@@ -2433,7 +2398,7 @@ function renderPendientes(el) {
         </div>
 
         <div class="pendiente-detalle" id="pd-${nombre.replace(/\W/g,'_')}">
-          ${iban?`<div style="padding:8px 14px 0;font-size:9px;color:#888">IBAN: <strong>${iban}</strong></div>`:''}
+          ${iban?`<div style="padding:8px 14px 0;font-size:9px;color:#888">IBAN: <strong>${esc(iban)}</strong></div>`:''}
 
           <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:8px">
             <thead>
@@ -2453,9 +2418,9 @@ function renderPendientes(el) {
                   <td style="padding:9px 10px;color:#888;font-size:10px">${m.turno||'—'}</td>
                   <td style="padding:9px 10px;text-align:right;font-weight:700">${m.monto_crc?fi(m.monto_crc):'—'}</td>
                   <td style="padding:9px 10px;text-align:right;color:#7ab4d4;font-weight:700">${m.monto_usd?fd(m.monto_usd):'—'}</td>
-                  <td style="padding:9px 10px;font-size:10px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.notas||m.referencia||'—'}</td>
+                  <td style="padding:9px 10px;font-size:10px;color:#888;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.notas||m.referencia||'—')}</td>
                   <td style="padding:9px 10px;text-align:center">
-                    <button class="btn btn-green btn-sm" onclick="marcarPagado('${m.id}')">✓ Pagado</button>
+                    <button class="btn btn-green btn-sm" onclick="marcarPagado('${esc(m.id)}')">✓ Pagado</button>
                   </td>
                 </tr>
               `).join('')}
@@ -3243,9 +3208,9 @@ function renderCierreConfirmado(el, data) {
 function renderCierreTurno(el) {
   const hoy  = new Date().toISOString().slice(0,10);
   const tc   = TIPO_CAMBIO || 530;
-  const empList = EMPLEADOS.length ? EMPLEADOS
-    : ['Alan','Dolores','GUIDO','GUILLE','Ignacio','Jaime','Joaquina','Jota','Maxi','Nacho','ROSAURA M','Rocio'];
-  const empOpts = empList.map(e=>`<option value="${e}">${e}</option>`).join('');
+  const empOpts = EMPLEADOS.length
+    ? EMPLEADOS.map(e=>`<option value="${e}">${e}</option>`).join('')
+    : '<option value="" disabled>Sin empleados — sincronizá primero</option>';
 
   // Buscar cierre parcial de mediodía del día seleccionado
   const cierreParcialHoy = CIERRES_TURNO
