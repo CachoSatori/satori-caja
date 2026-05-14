@@ -1785,7 +1785,10 @@ function renderMovimientos(el) {
       </div>
     </div>
 
-    <!-- Saldos -->
+    <!-- Caja Fuerte hero -->
+    <div id="cf-hero" style="margin-bottom:14px"></div>
+
+    <!-- Saldos secundarios -->
     <div class="saldos-bar" id="saldos-bar" style="margin-bottom:20px"></div>
 
     <!-- Filtros -->
@@ -2157,9 +2160,28 @@ function buildSaldos() {
     }
   });
 
-  // ── RENDER ────────────────────────────────────────────────
+  // ── RENDER HERO CF ────────────────────────────────────────
+  const hero = document.getElementById('cf-hero');
+  if (hero) {
+    const negCRC = cfCRC < 0;
+    const colorCRC = negCRC ? 'var(--red)' : 'var(--gold)';
+    hero.innerHTML = `
+      <div style="background:var(--ink);border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:2px;padding:16px 22px;display:flex;align-items:center;gap:32px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:#555;margin-bottom:6px">Saldo Caja Fuerte</div>
+          <div style="font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:${colorCRC};line-height:1">${fi(cfCRC)}</div>
+          ${cfUSD ? `<div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;color:#7ab4d4;margin-top:6px">${fd(cfUSD)}</div>` : ''}
+        </div>
+        <div style="font-size:9px;color:#555;line-height:1.7;border-left:1px solid #2a2a2a;padding-left:24px">
+          <div>Saldo inicial registrado: <span style="color:#888">${fi(CF_SALDO_INICIAL)}${CF_SALDO_INICIAL_USD ? ' / ' + fd(CF_SALDO_INICIAL_USD) : ''}</span></div>
+          <div>Este es el efectivo que debería haber físicamente en CF</div>
+        </div>
+      </div>`;
+  }
+
+  // ── RENDER SALDOS SECUNDARIOS ─────────────────────────────
   bar.innerHTML = `
-    <div class="saldo-card" style="border-left-color:var(--gold)">
+    <div class="saldo-card" style="border-left-color:var(--gold);opacity:.6">
       <div class="saldo-label">Caja Fuerte</div>
       <div class="saldo-val ${cfCRC < 0 ? 'red' : ''}">${fi(cfCRC)}</div>
       ${cfUSD ? `<div class="saldo-val usd">${fd(cfUSD)}</div>` : ''}
