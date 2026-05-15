@@ -234,6 +234,12 @@ header {
 .modal-title { font-family:'Shippori Mincho',serif; font-size:18px; font-weight:700; margin-bottom:20px; }
 .modal-actions { display:flex; gap:10px; margin-top:20px; justify-content:flex-end; }
 
+/* ── RESUMEN TURNO MODAL ── */
+.resumen-modal { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:1500; display:flex; align-items:center; justify-content:center; padding:20px; overflow-y:auto; }
+.resumen-box { background:var(--paper); border-radius:3px; border:1px solid var(--border); width:100%; max-width:540px; padding:28px; max-height:90vh; overflow-y:auto; box-shadow:0 8px 40px rgba(0,0,0,.35); }
+.resumen-row-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.resumen-row-item:last-child { border-bottom:none; }
+
 /* ── TOAST ── */
 .toast {
   position:fixed; bottom:24px; right:24px; background:var(--ink);
@@ -1159,6 +1165,35 @@ function renderTurno(el) {
     </div>
   </div>
 
+  <!-- Ingresos adicionales (primero, para que quede cerca del monto asignado) -->
+  <div class="csec">
+    <div class="csec-head">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="csec-icon" style="background:#e0edf8"><i class="ti ti-cash" style="color:#1a4a7a"></i></div>
+        <div>
+          <div style="font-size:13px;font-weight:600;letter-spacing:.03em">Ingresos adicionales del turno</div>
+          <div style="font-size:10px;color:#888;margin-top:2px">Venta de aceite, otros ingresos en efectivo</div>
+        </div>
+      </div>
+      <button onclick="addAdicional()" style="font-size:11px;padding:6px 14px;border-radius:2px;cursor:pointer;display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:#fff;letter-spacing:.05em">
+        <i class="ti ti-plus" style="font-size:13px"></i> Agregar
+      </button>
+    </div>
+    <div class="csec-body">
+      <div id="adicionales-wrap"></div>
+      <div id="ingresos-empty" style="display:flex;align-items:center;gap:8px;color:#aaa;font-size:12px;padding:2px 0">
+        <i class="ti ti-info-circle" style="font-size:15px;flex-shrink:0"></i>
+        Sin ingresos adicionales registrados este turno
+      </div>
+      <div id="total-ingresos-bar" style="display:none;margin-top:8px">
+        <div class="tot-bar" style="background:#e0edf8">
+          <div class="fl" style="color:#1a4a7a">Total ingresos adicionales</div>
+          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#1a4a7a" id="total-ingresos-val">₡ 0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Pagos a proveedores -->
   <div class="csec">
     <div class="csec-head">
@@ -1184,35 +1219,6 @@ function renderTurno(el) {
         <div id="cd-pend-bar" class="pend-bar" style="display:none">
           <i class="ti ti-clock" style="color:#8a5210;font-size:16px;flex-shrink:0"></i>
           <div style="font-size:11px;color:#6a3a08" id="cd-pend-txt"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Ingresos adicionales -->
-  <div class="csec">
-    <div class="csec-head">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="csec-icon" style="background:#e0edf8"><i class="ti ti-cash" style="color:#1a4a7a"></i></div>
-        <div>
-          <div style="font-size:13px;font-weight:600;letter-spacing:.03em">Ingresos adicionales del turno</div>
-          <div style="font-size:10px;color:#888;margin-top:2px">Venta de aceite, otros ingresos en efectivo</div>
-        </div>
-      </div>
-      <button onclick="addIngreso()" style="font-size:11px;padding:6px 14px;border-radius:2px;cursor:pointer;display:flex;align-items:center;gap:5px;border:1px solid var(--border);background:#fff;letter-spacing:.05em">
-        <i class="ti ti-plus" style="font-size:13px"></i> Agregar
-      </button>
-    </div>
-    <div class="csec-body">
-      <div id="ingresos-wrap"></div>
-      <div id="ingresos-empty" style="display:flex;align-items:center;gap:8px;color:#aaa;font-size:12px;padding:2px 0">
-        <i class="ti ti-info-circle" style="font-size:15px;flex-shrink:0"></i>
-        Sin ingresos adicionales registrados este turno
-      </div>
-      <div id="total-ingresos-bar" style="display:none;margin-top:8px">
-        <div class="tot-bar" style="background:#e0edf8">
-          <div class="fl" style="color:#1a4a7a">Total ingresos adicionales</div>
-          <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#1a4a7a" id="total-ingresos-val">₡ 0</div>
         </div>
       </div>
     </div>
@@ -1291,8 +1297,7 @@ function recalcCierre2() {
   // Función auxiliar para el bloque de cierre en Caja Diaria
   const cajaCRC  = +document.getElementById('t-caja-crc')?.value || 0;
   const adics    = adicionalesActuales.filter(a=>a).reduce((s,a)=>s+(a.crc||0), 0);
-  const ingresos = (typeof ingresosActuales!=='undefined'?ingresosActuales:[]).filter(i=>i).reduce((s,i)=>s+(i.monto_crc||0),0);
-  const totalAsig = cajaCRC + adics + ingresos;
+  const totalAsig = cajaCRC + adics;
 
   const pagosEf = pagosActuales.filter(p=>p&&p.proveedor_id&&p.metodo==='Efectivo').reduce((s,p)=>s+(p.monto_crc||0),0);
   const deberia = totalAsig - pagosEf;
@@ -1340,18 +1345,17 @@ function recalcTotales() {
   const totalCRC = cajaCRC + adicCRC;
   const totalUSD = cajaUSD + adicUSD;
 
-  // Total ingresos adicionales
-  const ingresos = (typeof ingresosActuales !== 'undefined' ? ingresosActuales : []).filter(i=>i);
-  const ingrCRC = ingresos.reduce((s,i)=>s+(i.monto_crc||0),0);
-  const ingrUSD = ingresos.reduce((s,i)=>s+(i.monto_usd||0),0);
+  // Barra de total ingresos adicionales
   const tiBar = document.getElementById('total-ingresos-bar');
   const tiVal = document.getElementById('total-ingresos-val');
-  if (tiBar) tiBar.style.display = ingresos.length ? 'block' : 'none';
-  if (tiVal) tiVal.textContent = '₡ ' + Math.round(ingrCRC).toLocaleString('es-CR') + (ingrUSD?' / $'+ingrUSD.toFixed(2):'');
+  const ingEmpty = document.getElementById('ingresos-empty');
+  if (tiBar) tiBar.style.display = adics.length ? 'block' : 'none';
+  if (ingEmpty) ingEmpty.style.display = adics.length ? 'none' : 'flex';
+  if (tiVal) tiVal.textContent = fi(adicCRC) + (adicUSD ? ' / ' + fd(adicUSD) : '');
 
-  // Total asignado (caja + adicionales + ingresos)
-  const totalCRCconIngr = totalCRC + ingrCRC;
-  const totalUSDconIngr = totalUSD + ingrUSD;
+  // Total asignado (caja + adicionales)
+  const totalCRCconIngr = totalCRC;
+  const totalUSDconIngr = totalUSD;
   const ta = document.getElementById('total-asignado-crc');
   const taU = document.getElementById('total-asignado-usd');
   if (ta) ta.textContent = '₡ ' + Math.round(totalCRCconIngr).toLocaleString('es-CR');
@@ -1452,20 +1456,44 @@ function addAdicional() {
   adicionalesActuales.push({ crc:0, usd:0, nota:'' });
   const wrap = document.getElementById('adicionales-wrap');
   const div = document.createElement('div');
-  div.className = 'adicional-row';
+  div.className = 'pago-card';
   div.id = 'adic-' + idx;
-  div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:8px;padding:10px;background:#f5f0e8;border-radius:2px;border:1px solid var(--border)';
   div.innerHTML = `
-    <div class="monto-wrap" style="width:170px">
-      <span class="monto-prefix">₡</span>
-      <input class="form-input" type="number" placeholder="0" oninput="adicionalesActuales[${idx}].crc=+this.value;recalcTotales()">
+    <div class="pago-card-head" id="adic-head-${idx}">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="pago-num">${idx + 1}</div>
+        <div style="font-size:11px;font-weight:700;color:var(--ink)" id="adic-label-${idx}">Ingreso adicional</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="removeAdicional(${idx})" style="color:var(--red);border-color:#f0b0b0;padding:3px 8px">× Quitar</button>
+      </div>
     </div>
-    <div class="monto-wrap usd" style="width:150px">
-      <span class="monto-prefix">$</span>
-      <input class="form-input" type="number" placeholder="0" oninput="adicionalesActuales[${idx}].usd=+this.value;recalcTotales()">
+    <div id="adic-form-${idx}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="form-group">
+          <label class="form-label">Monto ₡ colones</label>
+          <div class="monto-wrap">
+            <span class="monto-prefix">₡</span>
+            <input class="form-input" type="number" placeholder="0" id="adic-crc-${idx}" oninput="adicionalesActuales[${idx}].crc=+this.value;recalcTotales()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monto $ dólares</label>
+          <div class="monto-wrap usd">
+            <span class="monto-prefix">$</span>
+            <input class="form-input" type="number" placeholder="0" id="adic-usd-${idx}" oninput="adicionalesActuales[${idx}].usd=+this.value;recalcTotales()">
+          </div>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">Motivo del ingreso</label>
+        <input class="form-input" placeholder="Ej: venta de aceite, cambio extra..." id="adic-nota-${idx}" oninput="adicionalesActuales[${idx}].nota=this.value">
+      </div>
+      <button onclick="confirmarAdicionalCard(${idx})" id="btn-confirm-adic-${idx}"
+        style="width:100%;padding:10px;font-size:10px;letter-spacing:.15em;text-transform:uppercase;font-family:'DM Mono',monospace;font-weight:700;cursor:pointer;border-radius:2px;border:1.5px solid #1a4a7a;background:transparent;color:#1a4a7a;transition:all .15s">
+        ✓ Confirmar ingreso
+      </button>
     </div>
-    <input class="form-input nota-inline" placeholder="Motivo del adicional..." oninput="adicionalesActuales[${idx}].nota=this.value" style="flex:1">
-    <button class="btn btn-ghost btn-sm" onclick="removeAdicional(${idx})" style="color:var(--red);border-color:#f0b0b0">×</button>
   `;
   wrap.appendChild(div);
 }
@@ -1475,6 +1503,65 @@ function removeAdicional(idx) {
   const el = document.getElementById('adic-'+idx);
   if (el) el.remove();
   recalcTotales();
+}
+
+function confirmarAdicionalCard(idx) {
+  const a = adicionalesActuales[idx];
+  if (!a) return;
+  if (!a.crc && !a.usd) { showToast('Ingresá un monto', 'error'); return; }
+
+  const card = document.getElementById('adic-' + idx);
+  if (!card) return;
+  const form = document.getElementById('adic-form-' + idx);
+  if (form) form.style.display = 'none';
+
+  // Actualizar label del head con resumen
+  const label = document.getElementById('adic-label-' + idx);
+  if (label) label.textContent = (a.nota || 'Ingreso adicional') + (a.crc ? ' · ' + fi(a.crc) : '') + (a.usd ? ' / ' + fd(a.usd) : '');
+
+  // Badge confirmado + botón editar en el head
+  const head = document.getElementById('adic-head-' + idx);
+  const actionsDiv = head?.querySelector('div:last-child');
+  if (actionsDiv) {
+    const badge = document.createElement('span');
+    badge.textContent = '✓ Confirmado';
+    badge.style.cssText = 'font-size:9px;letter-spacing:.1em;font-weight:700;color:#1a4a7a;padding:3px 8px;border:1px solid #1a4a7a;border-radius:2px';
+    const btnEditar = document.createElement('button');
+    btnEditar.textContent = 'Editar';
+    btnEditar.style.cssText = 'padding:3px 10px;font-size:9px;font-family:DM Mono,monospace;cursor:pointer;border-radius:2px;border:1px solid #d4cfc4;background:#fff';
+    btnEditar.onclick = () => editarAdicionalCard(idx);
+    actionsDiv.prepend(btnEditar);
+    actionsDiv.prepend(badge);
+  }
+  recalcTotales();
+}
+
+function editarAdicionalCard(idx) {
+  const form = document.getElementById('adic-form-' + idx);
+  if (form) form.style.display = 'block';
+  // Quitar badge confirmado y botón editar del head
+  const head = document.getElementById('adic-head-' + idx);
+  if (head) {
+    head.querySelectorAll('span, button:not([onclick*="removeAdicional"])').forEach(el => {
+      if (el.textContent === '✓ Confirmado' || el.textContent === 'Editar') el.remove();
+    });
+  }
+  const label = document.getElementById('adic-label-' + idx);
+  if (label) label.textContent = 'Ingreso adicional';
+}
+
+function editarPagoCard(idx) {
+  const card = document.getElementById('pago-' + idx);
+  if (!card) return;
+  const head = card.querySelector('.pago-card-head');
+  // Mostrar todos los elementos ocultos del form
+  Array.from(card.children).forEach(c => { if (c !== head) c.style.display = ''; });
+  // Quitar badge confirmado y botón editar
+  if (head) {
+    head.querySelectorAll('span, button').forEach(el => {
+      if (el.textContent === '✓ Confirmado' || el.textContent === 'Editar') el.remove();
+    });
+  }
 }
 
 function addPagoTurno() {
@@ -1502,6 +1589,7 @@ function addPagoTurno() {
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span id="pago-badge-pendiente-${idx}" style="display:none" class="badge-pendiente">→ Pendiente</span>
+        <button style="padding:3px 10px;font-size:9px;font-family:DM Mono,monospace;cursor:pointer;border-radius:2px;border:1px solid #d4cfc4;background:#fff" onclick="editarPagoCard(${idx})">Editar</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:#f0b0b0;padding:3px 8px" onclick="removePago(${idx})">× Quitar</button>
       </div>
     </div>
@@ -1614,12 +1702,16 @@ function confirmarPagoCard(idx) {
   const head = card.querySelector('.pago-card-head');
   Array.from(card.children).forEach(c => { if (c !== head) c.style.display = 'none'; });
 
-  // Mostrar badge de confirmado en el encabezado
+  // Mostrar badge de confirmado + botón editar en el encabezado
   const badgeZone = head?.querySelector('div:last-child');
   const badgeConf = document.createElement('span');
   badgeConf.textContent = '✓ Confirmado';
   badgeConf.style.cssText = 'font-size:9px;letter-spacing:.1em;font-weight:700;color:var(--green);padding:3px 8px;border:1px solid var(--green);border-radius:2px';
-  if (badgeZone) badgeZone.prepend(badgeConf);
+  const btnEditar = document.createElement('button');
+  btnEditar.textContent = 'Editar';
+  btnEditar.style.cssText = 'padding:3px 10px;font-size:9px;font-family:DM Mono,monospace;cursor:pointer;border-radius:2px;border:1px solid #d4cfc4;background:#fff';
+  btnEditar.onclick = () => editarPagoCard(idx);
+  if (badgeZone) { badgeZone.prepend(btnEditar); badgeZone.prepend(badgeConf); }
 
   recalcTotales();
 }
