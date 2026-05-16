@@ -293,6 +293,7 @@ header {
     <span class="logo-sub">Caja</span>
   </div>
   <div class="header-right">
+    <span id="dia-status-badge" style="display:none;font-size:8px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:2px;cursor:default"></span>
     <span id="sync-badge" class="sync-badge" onclick="syncData()" title="Sincronizar">⟳ Sincronizando...</span>
     <div style="position:relative">
       <div id="modo-badge" onclick="toggleModoMenu()" style="font-size:8px;letter-spacing:.2em;color:#888;text-transform:uppercase;padding:4px 10px;border:1px solid #2a2a2a;border-radius:1px;cursor:pointer;user-select:none;" title="Cambiar modo"></div>
@@ -637,6 +638,8 @@ async function syncData() {
     badge.className = 'sync-badge err';
   }
 
+  updateDiaStatusBadge();
+
   // Re-render vista activa
   const active = document.querySelector('.nav-tab.active');
   if (active) renderView(active.dataset.id);
@@ -668,6 +671,56 @@ function getTabs() {
     { id:'resumen',     label:'Resumen' },
     { id:'config',      label:'Config' },
   ];
+}
+
+function updateDiaStatusBadge() {
+  const badge = document.getElementById('dia-status-badge');
+  if (!badge) return;
+  const hoy = today();
+
+  const turnosHoy    = TURNOS.filter(t => t.fecha === hoy);
+  const cierresHoy   = CIERRES_TURNO.filter(ct => ct.fecha === hoy);
+  const tieneCompleto  = cierresHoy.some(ct => ct.tipo === 'completo');
+  const tieneParcial   = cierresHoy.some(ct => ct.tipo === 'parcial_mediodia');
+  const tieneTurno     = turnosHoy.length > 0;
+
+  // Advertencia: turnos o cierres de días anteriores sin cierre completo
+  const ayer = new Date(Date.now() - 864e5).toISOString().slice(0,10);
+  const pendienteAyer = TURNOS.some(t => t.fecha === ayer) &&
+    !CIERRES_TURNO.some(ct => ct.fecha === ayer && ct.tipo === 'completo');
+
+  let texto, bg, color;
+
+  if (pendienteAyer) {
+    texto = '⚠ Cierre pendiente de ayer';
+    bg = '#3a1a1a'; color = '#f08080';
+  } else if (tieneCompleto) {
+    texto = '✓ Día completo';
+    bg = '#0d2a1a'; color = '#7ec8a0';
+  } else if (tieneParcial) {
+    texto = '◑ Turno mañana cerrado';
+    bg = '#1a2a0a'; color = '#a0c870';
+  } else if (tieneTurno) {
+    texto = '● Turno mañana abierto';
+    bg = '#1a2010'; color = '#c8a96e';
+  } else {
+    texto = '○ Sin actividad hoy';
+    bg = '#1a1a1a'; color = '#555';
+  }
+
+  badge.textContent = texto;
+  badge.style.background = bg;
+  badge.style.color = color;
+  badge.style.display = 'inline';
+
+  // Tooltip si hay desfase de fechas
+  const turnosOtrosDias = TURNOS.filter(t => t.fecha !== hoy && t.fecha >= ayer);
+  const cierresOtrosDias = CIERRES_TURNO.filter(ct => ct.fecha !== hoy && ct.fecha >= ayer && ct.tipo !== 'completo');
+  if (turnosOtrosDias.length || cierresOtrosDias.length) {
+    badge.title = 'Hay registros de otros días sin cerrar — revisá el historial';
+  } else {
+    badge.title = '';
+  }
 }
 
 function buildNav() {
@@ -1054,6 +1107,7 @@ async function confirmarApertura(sugeridoCRC, sugeridoUSD) {
   document.getElementById('t-empleado') && (document.getElementById('t-empleado').value = empleado);
 
   showToast('✓ Apertura confirmada — '+ fi(crc), 'success');
+  updateDiaStatusBadge();
   renderView('turno');
 }
 
@@ -1879,6 +1933,7 @@ async function confirmarCierreTurno() {
   // Limpiar y volver a renderizar
   pagosActuales = [];
   adicionalesActuales = [];
+  updateDiaStatusBadge();
   renderView('turno');
 }
 
@@ -3813,6 +3868,7 @@ async function confirmarCierreParcial() {
     CIERRES_TURNO.push(data);
     localStorage.setItem('caja_cierres', JSON.stringify(CIERRES_TURNO));
     showToast('✓ Cierre mediodía confirmado y sellado', 'success');
+    updateDiaStatusBadge();
     renderCierreTurno(document.getElementById('view-cierre'));
   } else {
     showToast('✗ Error al guardar en Sheets. Reintentá.', 'error');
@@ -3941,6 +3997,7 @@ async function confirmarCierreTurnoManager() {
   localStorage.removeItem('caja_apertura_activa');
   localStorage.removeItem('caja_apertura_crc');
   localStorage.removeItem('caja_apertura_usd');
+  updateDiaStatusBadge();
   // Mostrar pantalla de confirmación estática
   renderCierreConfirmado(document.getElementById('view-cierre'), data);
 }
